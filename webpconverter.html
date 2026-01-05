@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WebP Multi-Size Converter</title>
+    <!-- JSZip and FileSaver Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+
+    <style>
+      :root {
+        --primary-color: #4f46e5;
+        --primary-hover: #4338ca;
+        --bg-color: #f3f4f6;
+        --card-bg: #ffffff;
+        --text-main: #1f2937;
+        --text-secondary: #6b7280;
+        --border-color: #e5e7eb;
+        --radius-md: 12px;
+        --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+        font-family: "Segoe UI", system-ui, sans-serif;
+      }
+
+      body {
+        background-color: var(--bg-color);
+        color: var(--text-main);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        min-height: 100vh;
+        padding: 2rem 1rem;
+      }
+
+      header {
+        text-align: center;
+        margin-bottom: 2rem;
+      }
+      h1 {
+        font-size: 1.8rem;
+        margin-bottom: 0.5rem;
+      }
+
+      main {
+        width: 100%;
+        max-width: 700px;
+        background: var(--card-bg);
+        border-radius: var(--radius-md);
+        box-shadow: var(--shadow-lg);
+        padding: 2rem;
+        display: flex;
+        flex-direction: column;
+        gap: 1.5rem;
+      }
+
+      /* Drop Zone */
+      .drop-zone {
+        border: 2px dashed var(--border-color);
+        border-radius: var(--radius-md);
+        padding: 3rem 1.5rem;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        position: relative;
+        background-color: #fafafa;
+      }
+      .drop-zone:hover {
+        border-color: var(--primary-color);
+        background-color: #eef2ff;
+      }
+      .drop-zone input[type="file"] {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        top: 0;
+        left: 0;
+        opacity: 0;
+        cursor: pointer;
+      }
+
+      /* Preview */
+      .preview-container {
+        display: none;
+        flex-direction: column;
+        gap: 1rem;
+        animation: fadeIn 0.5s ease;
+      }
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+          transform: translateY(10px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      .image-wrapper {
+        max-width: 100%;
+        max-height: 300px;
+        overflow: hidden;
+        border-radius: var(--radius-md);
+        border: 1px solid var(--border-color);
+        display: flex;
+        justify-content: center;
+        background: #eee;
+      }
+      .image-wrapper img {
+        max-width: 100%;
+        max-height: 300px;
+        object-fit: contain;
+      }
+
+      .file-meta {
+        display: flex;
+        justify-content: space-between;
+        background: #f9fafb;
+        padding: 0.75rem;
+        border-radius: var(--radius-md);
+        font-size: 0.9rem;
+        color: var(--text-secondary);
+      }
+
+      /* Controls */
+      .controls {
+        display: none;
+        flex-direction: column;
+        gap: 1.5rem;
+        padding-top: 1.5rem;
+        border-top: 1px solid var(--border-color);
+      }
+
+      /* Mode Toggle */
+      .mode-selector {
+        display: flex;
+        background: #f3f4f6;
+        padding: 0.25rem;
+        border-radius: var(--radius-md);
+      }
+      .mode-option {
+        flex: 1;
+        text-align: center;
+      }
+      .mode-option input {
+        display: none;
+      }
+      .mode-option label {
+        display: block;
+        padding: 0.6rem;
+        border-radius: calc(var(--radius-md) - 2px);
+        cursor: pointer;
+        font-weight: 500;
+        color: var(--text-secondary);
+        transition: all 0.2s;
+      }
+      .mode-option input:checked + label {
+        background: white;
+        color: var(--primary-color);
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+      }
+
+      /* Size Grid */
+      .multi-size-grid {
+        display: none;
+        grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+        gap: 0.75rem;
+        background: #f9fafb;
+        padding: 1rem;
+        border-radius: var(--radius-md);
+      }
+      .checkbox-wrapper {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.9rem;
+        cursor: pointer;
+        user-select: none;
+      }
+
+      /* Slider */
+      .control-group {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+      }
+      .control-header {
+        display: flex;
+        justify-content: space-between;
+        font-size: 0.9rem;
+        font-weight: 600;
+      }
+      input[type="range"] {
+        appearance: none;
+        -webkit-appearance: none;
+        width: 100%;
+        height: 6px;
+        border-radius: 5px;
+        background: #d1d5db;
+        outline: none;
+      }
+      input[type="range"]::-webkit-slider-thumb {
+        appearance: none;
+        -webkit-appearance: none;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background: var(--primary-color);
+        cursor: pointer;
+      }
+
+      /* Buttons */
+      .actions {
+        display: flex;
+        gap: 1rem;
+        justify-content: flex-end;
+      }
+      .btn {
+        padding: 0.75rem 1.5rem;
+        border: none;
+        border-radius: var(--radius-md);
+        font-weight: 600;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+      .btn-primary {
+        background-color: var(--primary-color);
+        color: white;
+      }
+      .btn-primary:hover {
+        background-color: var(--primary-hover);
+      }
+      .btn-secondary {
+        background-color: white;
+        border: 1px solid var(--border-color);
+        color: var(--text-main);
+      }
+
+      /* Loading */
+      .loading-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(255, 255, 255, 0.9);
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        z-index: 1000;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.3s;
+      }
+      .loading-overlay.active {
+        opacity: 1;
+        pointer-events: all;
+      }
+      .spinner {
+        width: 40px;
+        height: 40px;
+        border: 4px solid #e5e7eb;
+        border-top: 4px solid var(--primary-color);
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+      }
+      @keyframes spin {
+        0% {
+          transform: rotate(0deg);
+        }
+        100% {
+          transform: rotate(360deg);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>WebP Converter & Srcset Tool</h1>
+      <p style="color: var(--text-secondary)">
+        Convert to single WebP or generate multiple sizes for ZIP download.
+      </p>
+    </header>
+
+    <main>
+      <!-- Drop Zone -->
+      <div class="drop-zone" id="dropZone">
+        <span style="font-size: 3rem; display: block; margin-bottom: 0.5rem"
+          >📁</span
+        >
+        <div style="font-weight: 600">Drag & Drop an image here</div>
+        <div
+          style="
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            margin-top: 0.25rem;
+          "
+        >
+          JPG, JPEG, PNG
+        </div>
+        <input
+          type="file"
+          id="fileInput"
+          accept="image/jpeg, image/png, image/jpg"
+        />
+      </div>
+
+      <!-- Preview Area -->
+      <div class="preview-container" id="previewContainer">
+        <div class="image-wrapper">
+          <img id="previewImage" src="" alt="Preview" />
+        </div>
+        <div class="file-meta">
+          <span id="fileName">filename.jpg</span>
+          <span id="fileDimensions">0 x 0 px</span>
+        </div>
+      </div>
+
+      <!-- Controls -->
+      <div class="controls" id="controls">
+        <!-- Mode Selection -->
+        <div class="mode-selector">
+          <div class="mode-option">
+            <input
+              type="radio"
+              name="outputMode"
+              id="modeSingle"
+              value="single"
+              checked
+            />
+            <label for="modeSingle">Single Image</label>
+          </div>
+          <div class="mode-option">
+            <input
+              type="radio"
+              name="outputMode"
+              id="modeMulti"
+              value="multi"
+            />
+            <label for="modeMulti">Multiple Sizes (ZIP)</label>
+          </div>
+        </div>
+
+        <!-- Multi Size Options Grid -->
+        <div class="multi-size-grid" id="multiSizeGrid">
+          <label class="checkbox-wrapper"><input type="checkbox" value="320" checked /> 320w</label>
+          <label class="checkbox-wrapper"><input type="checkbox" value="480" checked /> 480w</label>
+          <label class="checkbox-wrapper"><input type="checkbox" value="640" checked /> 640w</label>
+          <label class="checkbox-wrapper"><input type="checkbox" value="800" checked /> 800w</label>
+          <label class="checkbox-wrapper"><input type="checkbox" value="1024" checked /> 1024w</label>
+          <label class="checkbox-wrapper"><input type="checkbox" value="1200" /> 1200w</label>
+          <label class="checkbox-wrapper"><input type="checkbox" value="1920" /> 1920w</label>
+        </div>
+
+        <!-- Quality Slider -->
+        <div class="control-group">
+          <div class="control-header">
+            <span>Quality</span>
+            <span id="qualityValue" style="color: var(--primary-color)"
+              >80%</span
+            >
+          </div>
+          <input type="range" id="qualitySlider" min="1" max="100" value="80" />
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="actions">
+          <button class="btn btn-secondary" id="resetBtn">Cancel</button>
+          <button class="btn btn-primary" id="convertBtn">
+            Convert & Download
+          </button>
+        </div>
+      </div>
+    </main>
+
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+      <div class="spinner"></div>
+      <div
+        style="margin-top: 1rem; font-weight: 600; color: #555"
+        id="loadingText"
+      >
+        Processing...
+      </div>
+    </div>
+
+    <script>
+      document.addEventListener("DOMContentLoaded", () => {
+        // Elements
+        const dropZone = document.getElementById("dropZone");
+        const fileInput = document.getElementById("fileInput");
+        const previewContainer = document.getElementById("previewContainer");
+        const previewImage = document.getElementById("previewImage");
+        const controls = document.getElementById("controls");
+        const fileNameEl = document.getElementById("fileName");
+        const fileDimsEl = document.getElementById("fileDimensions");
+        const loadingOverlay = document.getElementById("loadingOverlay");
+        const loadingText = document.getElementById("loadingText");
+
+        // Controls
+        const modeRadios = document.getElementsByName("outputMode");
+        const multiSizeGrid = document.getElementById("multiSizeGrid");
+        const qualitySlider = document.getElementById("qualitySlider");
+        const qualityValue = document.getElementById("qualityValue");
+        const convertBtn = document.getElementById("convertBtn");
+        const resetBtn = document.getElementById("resetBtn");
+
+        // State
+        let originalFile = null;
+        let originalImageObj = null;
+
+        // --- Event Listeners ---
+
+        // Drag & Drop
+        dropZone.addEventListener("dragover", (e) => {
+          e.preventDefault();
+          dropZone.style.borderColor = "var(--primary-color)";
+        });
+        dropZone.addEventListener(
+          "dragleave",
+          () => (dropZone.style.borderColor = "var(--border-color)")
+        );
+        dropZone.addEventListener("drop", (e) => {
+          e.preventDefault();
+          dropZone.style.borderColor = "var(--border-color)";
+          if (e.dataTransfer.files.length) loadFile(e.dataTransfer.files[0]);
+        });
+        fileInput.addEventListener("change", (e) => {
+          if (e.target.files.length) loadFile(e.target.files[0]);
+        });
+
+        // Mode Toggle
+        modeRadios.forEach((radio) => {
+          radio.addEventListener("change", (e) => {
+            if (e.target.value === "multi") {
+              multiSizeGrid.style.display = "grid";
+              convertBtn.textContent = "Generate ZIP & Download";
+            } else {
+              multiSizeGrid.style.display = "none";
+              convertBtn.textContent = "Convert & Download WebP";
+            }
+          });
+        });
+
+        qualitySlider.addEventListener(
+          "input",
+          (e) => (qualityValue.textContent = e.target.value + "%")
+        );
+        resetBtn.addEventListener("click", resetApp);
+        convertBtn.addEventListener("click", startConversion);
+
+        // --- Core Functions ---
+
+        function loadFile(file) {
+          if (!file.type.match("image.*")) {
+            alert("Please select a valid image file (JPG, PNG).");
+            return;
+          }
+
+          originalFile = file;
+          const reader = new FileReader();
+
+          reader.onload = (e) => {
+            const img = new Image();
+            img.onload = () => {
+              originalImageObj = img;
+              previewImage.src = img.src;
+              fileNameEl.textContent = file.name;
+              fileDimsEl.textContent = `${img.width} x ${img.height} px`;
+
+              dropZone.style.display = "none";
+              previewContainer.style.display = "flex";
+              controls.style.display = "flex";
+            };
+            img.src = e.target.result;
+          };
+          reader.readAsDataURL(file);
+        }
+
+        async function startConversion() {
+          if (!originalImageObj) return;
+          const mode = document.querySelector(
+            'input[name="outputMode"]:checked'
+          ).value;
+          const quality = parseInt(qualitySlider.value) / 100;
+
+          setLoading(true);
+
+          try {
+            if (mode === "single") {
+              await processSingleImage(quality);
+            } else {
+              await processMultiSizeImages(quality);
+            }
+          } catch (err) {
+            console.error(err);
+            alert("An error occurred during conversion.");
+          } finally {
+            setLoading(false);
+          }
+        }
+
+        function processSingleImage(quality) {
+          return new Promise((resolve) => {
+            const canvas = document.createElement("canvas");
+            canvas.width = originalImageObj.width;
+            canvas.height = originalImageObj.height;
+            const ctx = canvas.getContext("2d");
+            ctx.drawImage(originalImageObj, 0, 0);
+
+            canvas.toBlob(
+              (blob) => {
+                const name = originalFile.name.substring(
+                  0,
+                  originalFile.name.lastIndexOf(".")
+                );
+                saveAs(blob, `${name}.webp`);
+                resolve();
+              },
+              "image/webp",
+              quality
+            );
+          });
+        }
+
+        async function processMultiSizeImages(quality) {
+          const checkboxes = document.querySelectorAll(
+            "#multiSizeGrid input:checked"
+          );
+          if (checkboxes.length === 0) {
+            alert("Please select at least one size.");
+            return;
+          }
+
+          const zip = new JSZip();
+          const originalName = originalFile.name.substring(
+            0,
+            originalFile.name.lastIndexOf(".")
+          );
+
+          // Capture original dimensions once
+          const originalWidth = originalImageObj.width;
+          const originalHeight = originalImageObj.height;
+
+          // Helper to wrap canvas.toBlob in a promise
+          const resizeAndBlob = (targetWidth) => {
+            return new Promise((resolve) => {
+              // Calculate aspect ratio
+              const aspectRatio = originalHeight / originalWidth;
+
+              // CHANGED: We now generate the exact requested width even if it means upscaling.
+              // This ensures different checkboxes result in different file sizes.
+              const finalWidth = targetWidth;
+              const finalHeight = Math.round(targetWidth * aspectRatio);
+
+              const canvas = document.createElement("canvas");
+              canvas.width = finalWidth;
+              canvas.height = finalHeight;
+              const ctx = canvas.getContext("2d");
+
+              // High quality smoothing for better upscaling/downscaling results
+              ctx.imageSmoothingEnabled = true;
+              ctx.imageSmoothingQuality = "high";
+
+              ctx.drawImage(originalImageObj, 0, 0, finalWidth, finalHeight);
+
+              canvas.toBlob(
+                (blob) => {
+                  resolve({
+                    requestedName: `${originalName}-${targetWidth}w.webp`,
+                    width: finalWidth, // Actual pixel width
+                    blob: blob,
+                  });
+                },
+                "image/webp",
+                quality
+              );
+            });
+          };
+
+          // CHANGED: Using for...of loop for clarity and safety
+          const promises = [];
+          for (const cb of checkboxes) {
+            const width = parseInt(cb.value);
+            if (!isNaN(width)) {
+              promises.push(resizeAndBlob(width));
+            }
+          }
+
+          const results = await Promise.all(promises);
+
+          // Add files to ZIP
+          results.forEach((res) => {
+            zip.file(res.requestedName, res.blob);
+          });
+
+          // Create Srcset Text File (Optional but helpful)
+          const srcsetContent = results
+            .map((res) => res.requestedName + " " + res.width + "w")
+            .join(",\n");
+          zip.file("srcset-suggestion.txt", srcsetContent);
+
+          // Generate ZIP
+          const content = await zip.generateAsync({ type: "blob" });
+          saveAs(content, `${originalName}-webp-pack.zip`);
+        }
+
+        function resetApp() {
+          originalFile = null;
+          originalImageObj = null;
+          fileInput.value = "";
+          previewImage.src = "";
+          dropZone.style.display = "block";
+          previewContainer.style.display = "none";
+          controls.style.display = "none";
+        }
+
+        function setLoading(active) {
+          loadingOverlay.classList.toggle("active", active);
+          loadingText.textContent = active
+            ? "Generating ZIP..."
+            : "Processing...";
+        }
+      });
+    </script>
+  </body>
+</html>
